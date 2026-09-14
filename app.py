@@ -17,59 +17,21 @@ class InvoiceRecord(BaseModel):
     base_freight_billed: float
     surcharge_billed: float # Holds either FSC or GST
     total_billed: float
+
 class InvoiceList(BaseModel):
     invoices: List[InvoiceRecord]
 
-# ==========================================
-# 5. The Inbox-Zero UI & Login Gate
-# ==========================================
-# st.set_page_config MUST be the very first Streamlit command!
-st.set_page_config(page_title="LOOT | Audit Engine", layout="wide")
-init_loot_state()
-
-# --- Box 1: The Login Gate ---
-if 'authenticated' not in st.session_state:
-    st.session_state['authenticated'] = False
-
-if not st.session_state['authenticated']:
-    st.title(" LOOT | Secure Login")
-    with st.form("login_form"):
-        email = st.text_input("Admin Email")
-        password = st.text_input("Password", type="password")
-        submitted = st.form_submit_button("Sign In")
-        
-        if submitted:
-            try:
-                url = st.secrets["SUPABASE_URL"]
-                key = st.secrets["SUPABASE_KEY"]
-                supabase: Client = create_client(url, key)
-                
-                # Verify credentials against Supabase Auth
-                supabase.auth.sign_in_with_password({
-                    "email": email, 
-                    "password": password
-                })
-                
-                st.session_state['authenticated'] = True
-                st.rerun()
-            except Exception:
-                st.error("Invalid email or password. Please try again.")
-                
-    # This stops the rest of the page from loading if they aren't logged in
-    st.stop() 
-
-# ==========================================================
-# (Your existing sidebar code starts exactly here)
-# ==========================================================
-with st.sidebar:
-    st.title("LOOT")
-
-
-# ==========================================================
-# (Your existing sidebar code starts exactly here)
-# ==========================================================
-with st.sidebar:
-    st.title("LOOT")
+def init_loot_state():
+    default_states = {
+        'rate_card_df': pd.DataFrame(),
+        'pod_df': pd.DataFrame(),
+        'invoice_df': pd.DataFrame(),
+        'exceptions_df': pd.DataFrame(),
+        'pdf_vault': {} 
+    }
+    for key, val in default_states.items():
+        if key not in st.session_state:
+            st.session_state[key] = val
 
 def fetch_live_contracts():
     url = st.secrets["SUPABASE_URL"]
@@ -84,21 +46,21 @@ def fetch_live_contracts():
     
     return rate_card_df, pod_df
 
+# --- Box 2: Permanent Cloud Storage Helper ---
 def vault_pdf_to_supabase(pdf_bytes: bytes, filename: str):
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
     supabase: Client = create_client(url, key)
     
     try:
-        # Silently archive the file to your new private bucket
         supabase.storage.from_("invoice-vault").upload(
             file=pdf_bytes,
             path=filename,
             file_options={"content-type": "application/pdf"}
         )
     except Exception:
-        # If a file with this exact name already exists in the bucket, skip the upload
         pass
+
 def extract_invoice_data(pdf_bytes: bytes, api_key: str, filename: str) -> pd.DataFrame:
     client = genai.Client(api_key=api_key)
     
@@ -115,7 +77,7 @@ def extract_invoice_data(pdf_bytes: bytes, api_key: str, filename: str) -> pd.Da
     
     try:
         response = client.models.generate_content(
-            model='gemini-3.6-flash',
+            model='gemini-2.5-flash',
             contents=[types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf'), prompt],
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -148,9 +110,43 @@ def run_3_way_match(invoice_df, pod_df, rate_card_df, tolerance=1.00):
 def convert_df_to_csv(df):
     return df.to_csv(index=False).encode('utf-8')
 
+# ==========================================
+# UI Setup & Box 1: The Login Gate
+# ==========================================
 st.set_page_config(page_title="LOOT | Audit Engine", layout="wide")
 init_loot_state()
 
+if 'authenticated' not in st.session_state:
+    st.session_state['authenticated'] = False
+
+if not st.session_state['authenticated']:
+    st.title("🔒 LOOT | Secure Login")
+    with st.form("login_form"):
+        email = st.text_input("Admin Email")
+        password = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Sign In")
+        
+        if submitted:
+            try:
+                url = st.secrets["SUPABASE_URL"]
+                key = st.secrets["SUPABASE_KEY"]
+                supabase: Client = create_client(url, key)
+                
+                supabase.auth.sign_in_with_password({
+                    "email": email, 
+                    "password": password
+                })
+                
+                st.session_state['authenticated'] = True
+                st.rerun()
+            except Exception:
+                st.error("Invalid email or password. Please try again.")
+                
+    st.stop() 
+
+# ==========================================
+# Main Sidebar Ingestion Workflow
+# ==========================================
 with st.sidebar:
     st.title("LOOT")
     st.subheader("Batch Ingestion")
@@ -167,7 +163,7 @@ with st.sidebar:
                 all_invoices = []
                 st.session_state['pdf_vault'].clear() 
                 
-           for pdf in uploaded_pdfs:
+                for pdf in uploaded_pdfs:
                     # --- Box 3: The Crash-Proof 5MB Size Limit ---
                     if pdf.size > 5_000_000:
                         st.error(f"Skipped {pdf.name}: File exceeds 5MB limit.")
@@ -185,13 +181,17 @@ with st.sidebar:
                         all_invoices.append(df)
                         st.session_state['pdf_vault'][pdf.name] = pdf_bytes 
                         
-                    time.sleep(3)
+                    time.sleep(3) 
+                    
                 if all_invoices:
                     st.session_state['invoice_df'] = pd.concat(all_invoices, ignore_index=True)
                     st.session_state['exceptions_df'] = run_3_way_match(st.session_state['invoice_df'], pod, rc)
         else:
             st.error("Please provide an API key and upload PDFs.")
 
+# ==========================================
+# Main Dashboard Queue
+# ==========================================
 st.title("Exception Verification Queue")
 
 exceptions = st.session_state['exceptions_df']
