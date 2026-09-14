@@ -129,13 +129,17 @@ with st.sidebar:
                 all_invoices = []
                 st.session_state['pdf_vault'].clear() 
                 
-                for pdf in uploaded_pdfs:
+           for pdf in uploaded_pdfs:
                     # --- Box 3: The Crash-Proof 5MB Size Limit ---
                     if pdf.size > 5_000_000:
                         st.error(f"Skipped {pdf.name}: File exceeds 5MB limit.")
                         continue
                         
                     pdf_bytes = pdf.getvalue()
+                    
+                    # --- Box 2: Permanent Cloud Storage ---
+                    vault_pdf_to_supabase(pdf_bytes, pdf.name)
+                    
                     df = extract_invoice_data(pdf_bytes, api_key, pdf.name)
                     
                     if not df.empty:
@@ -143,8 +147,7 @@ with st.sidebar:
                         all_invoices.append(df)
                         st.session_state['pdf_vault'][pdf.name] = pdf_bytes 
                         
-                    time.sleep(3) 
-                    
+                    time.sleep(3)
                 if all_invoices:
                     st.session_state['invoice_df'] = pd.concat(all_invoices, ignore_index=True)
                     st.session_state['exceptions_df'] = run_3_way_match(st.session_state['invoice_df'], pod, rc)
