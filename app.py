@@ -46,6 +46,21 @@ def fetch_live_contracts():
     
     return rate_card_df, pod_df
 
+def vault_pdf_to_supabase(pdf_bytes: bytes, filename: str):
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    supabase: Client = create_client(url, key)
+    
+    try:
+        # Silently archive the file to your new private bucket
+        supabase.storage.from_("invoice-vault").upload(
+            file=pdf_bytes,
+            path=filename,
+            file_options={"content-type": "application/pdf"}
+        )
+    except Exception:
+        # If a file with this exact name already exists in the bucket, skip the upload
+        pass
 def extract_invoice_data(pdf_bytes: bytes, api_key: str, filename: str) -> pd.DataFrame:
     client = genai.Client(api_key=api_key)
     
