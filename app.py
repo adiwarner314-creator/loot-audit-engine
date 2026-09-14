@@ -120,7 +120,7 @@ if 'authenticated' not in st.session_state:
     st.session_state['authenticated'] = False
 
 if not st.session_state['authenticated']:
-    st.title("🔒 LOOT | Secure Login")
+    st.title(" LOOT | Secure Login")
     with st.form("login_form"):
         email = st.text_input("Admin Email")
         password = st.text_input("Password", type="password")
@@ -222,6 +222,6 @@ if not invoices.empty:
         
         if selected_file and selected_file in st.session_state['pdf_vault']:
             st.info("Browser security prevents embedding PDFs directly on this cloud server.")
-            st.download_button("📥 Download & View Original Document", st.session_state['pdf_vault'][selected_file], selected_file, "application/pdf", type="primary", use_container_width=True)
+            st.download_button("Download & View Original Document", st.session_state['pdf_vault'][selected_file], selected_file, "application/pdf", type="primary", use_container_width=True)
 else:
     st.info("Upload PDFs from the sidebar to begin batch processing.")
