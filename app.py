@@ -164,7 +164,7 @@ if not invoices.empty:
             type="primary"
         )
         
-        # --- NEW: DOCUMENT REVIEWER ---
+     # --- NEW: DOCUMENT REVIEWER ---
         st.divider()
         st.subheader("Document Reviewer")
         
@@ -174,9 +174,16 @@ if not invoices.empty:
         
         if selected_file and selected_file in st.session_state['pdf_vault']:
             pdf_bytes = st.session_state['pdf_vault'][selected_file]
-            b64_pdf = base64.b64encode(pdf_bytes).decode('utf-8')
-            pdf_display = f'<iframe src="data:application/pdf;base64,{b64_pdf}" width="100%" height="800" type="application/pdf"></iframe>'
-            st.markdown(pdf_display, unsafe_allow_html=True)
+            
+            st.info("Browser security prevents embedding PDFs directly on this cloud server.")
+            st.download_button(
+                label="Download & View Original Document",
+                data=pdf_bytes,
+                file_name=selected_file,
+                mime="application/pdf",
+                type="primary",
+                use_container_width=True
+            )
 
 else:
     st.info("Upload PDFs from the sidebar to begin batch processing.")
