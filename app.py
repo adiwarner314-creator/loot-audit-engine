@@ -17,21 +17,59 @@ class InvoiceRecord(BaseModel):
     base_freight_billed: float
     surcharge_billed: float # Holds either FSC or GST
     total_billed: float
-
 class InvoiceList(BaseModel):
     invoices: List[InvoiceRecord]
 
-def init_loot_state():
-    default_states = {
-        'rate_card_df': pd.DataFrame(),
-        'pod_df': pd.DataFrame(),
-        'invoice_df': pd.DataFrame(),
-        'exceptions_df': pd.DataFrame(),
-        'pdf_vault': {} 
-    }
-    for key, val in default_states.items():
-        if key not in st.session_state:
-            st.session_state[key] = val
+# ==========================================
+# 5. The Inbox-Zero UI & Login Gate
+# ==========================================
+# st.set_page_config MUST be the very first Streamlit command!
+st.set_page_config(page_title="LOOT | Audit Engine", layout="wide")
+init_loot_state()
+
+# --- Box 1: The Login Gate ---
+if 'authenticated' not in st.session_state:
+    st.session_state['authenticated'] = False
+
+if not st.session_state['authenticated']:
+    st.title(" LOOT | Secure Login")
+    with st.form("login_form"):
+        email = st.text_input("Admin Email")
+        password = st.text_input("Password", type="password")
+        submitted = st.form_submit_button("Sign In")
+        
+        if submitted:
+            try:
+                url = st.secrets["SUPABASE_URL"]
+                key = st.secrets["SUPABASE_KEY"]
+                supabase: Client = create_client(url, key)
+                
+                # Verify credentials against Supabase Auth
+                supabase.auth.sign_in_with_password({
+                    "email": email, 
+                    "password": password
+                })
+                
+                st.session_state['authenticated'] = True
+                st.rerun()
+            except Exception:
+                st.error("Invalid email or password. Please try again.")
+                
+    # This stops the rest of the page from loading if they aren't logged in
+    st.stop() 
+
+# ==========================================================
+# (Your existing sidebar code starts exactly here)
+# ==========================================================
+with st.sidebar:
+    st.title("LOOT")
+
+
+# ==========================================================
+# (Your existing sidebar code starts exactly here)
+# ==========================================================
+with st.sidebar:
+    st.title("LOOT")
 
 def fetch_live_contracts():
     url = st.secrets["SUPABASE_URL"]
