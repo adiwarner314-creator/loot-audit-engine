@@ -12,9 +12,10 @@ class InvoiceRecord(BaseModel):
     shipment_id: str
     lane_id: str
     mode: str
+    currency: str # AI will output "USD" or "INR"
     weight_billed: float
     base_freight_billed: float
-    fsc_billed: float
+    surcharge_billed: float # This will hold either FSC or GST
     total_billed: float
 
 class InvoiceList(BaseModel):
